@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	errWrap "user-service/common/error"
 	"user-service/common/response"
@@ -168,6 +169,7 @@ func (u *UserController) Update(ctx *gin.Context) {
 func (u *UserController) GetUserLogin(ctx *gin.Context) {
 	user, err := u.userService.GetUser().GetUserLogin(ctx.Request.Context())
 	if err != nil {
+		fmt.Println("error", err)
 		response.HttpResponse(response.ParamHttpResp{
 			Code: http.StatusBadRequest,
 			Err:  err,

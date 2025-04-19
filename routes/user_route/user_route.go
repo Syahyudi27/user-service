@@ -25,9 +25,9 @@ func NewUserRoute(controllers controllers.IRegistryController, group *gin.Router
 
 func (u *UserRoute) Run() {
 	group := u.group.Group("/auth")
-	group.GET("/user", middlewares.Auntenticate(), u.controllers.GetUserController().GetUserLogin)
-	group.GET("/:uuid", middlewares.Auntenticate(), u.controllers.GetUserController().GetUserByUUID)
+	group.GET("/user", middlewares.Authenticate(), u.controllers.GetUserController().GetUserLogin)
+	group.GET("/:uuid", middlewares.Authenticate(), u.controllers.GetUserController().GetUserByUUID)
 	group.POST("/login", u.controllers.GetUserController().Login)
 	group.POST("/register", u.controllers.GetUserController().Register)
-	group.PUT("/:uuid", middlewares.Auntenticate(), u.controllers.GetUserController().Update)
+	group.PUT("/:uuid", middlewares.Authenticate(), u.controllers.GetUserController().Update)
 }

@@ -30,7 +30,7 @@ func HandlePanic() gin.HandlerFunc {
 				ctx.JSON(
 					http.StatusInternalServerError,
 					response.Response{
-						Status: constants.Error,
+						Status:  constants.Error,
 						Message: errConstant.ErrInternalServerError.Error(),
 					})
 				ctx.Abort()
@@ -43,19 +43,21 @@ func HandlePanic() gin.HandlerFunc {
 // untuk memberi batasan untuk request yang masuk ke dalam sistem
 func Ratelimit(lmt *limiter.Limiter) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		err := tollbooth.LimitByRequest(lmt,ctx.Writer, ctx.Request)
-		if err != nil{
+		err := tollbooth.LimitByRequest(lmt, ctx.Writer, ctx.Request)
+		if err != nil {
 			ctx.JSON(http.StatusTooManyRequests, response.Response{
-				Status: constants.Error,
+				Status:  constants.Error,
 				Message: errConstant.ErrTooManyRequests.Error(),
 			})
-			ctx.Next()
+			ctx.Abort()
+			return
 		}
+		ctx.Next()
 	}
 }
 
 func extractBearerToken(token string) string {
-	arrayToken := strings.Split(token, "")
+	arrayToken := strings.Split(token, " ")
 	if len(arrayToken) == 2 {
 		return arrayToken[1]
 	}
@@ -64,20 +66,20 @@ func extractBearerToken(token string) string {
 
 func responseUnauthorized(ctx *gin.Context, message string) {
 	ctx.JSON(http.StatusUnauthorized, response.Response{
-		Status: constants.Error,
+		Status:  constants.Error,
 		Message: message,
 	})
 	ctx.Abort()
 }
 
-func validateAPIKey(ctx *gin.Context) error{
+func validateAPIKey(ctx *gin.Context) error {
 	apiKey := ctx.GetHeader(constants.XApiKey)
-	requestAt := ctx.GetHeader(constants.RequestAt)
+	requestAt := ctx.GetHeader(constants.XRequestAt)
 	serviceName := ctx.GetHeader(constants.XServiceName)
 	signatureKey := config.Config.SignatureKey
 
-	validateKey := fmt.Sprintf("%s%s%s", serviceName, signatureKey, requestAt)
 
+	validateKey := fmt.Sprintf("%s:%s:%s", serviceName, signatureKey, requestAt)
 	hash := sha256.New()
 	hash.Write([]byte(validateKey))
 	resultHash := hex.EncodeToString(hash.Sum(nil))
@@ -86,56 +88,56 @@ func validateAPIKey(ctx *gin.Context) error{
 		return errConstant.ErrUnauthorized
 	}
 	return nil
+
 }
 
-func validateBerarerToken(ctx *gin.Context, token string) error{
-	 if !strings.Contains(token, "Bearer") {
+func validateBearerToken(ctx *gin.Context, token string) error {
+	if !strings.HasPrefix(token, "Bearer ") {
 		return errConstant.ErrUnauthorized
-	 }
+	}
 
-	 tokenString := extractBearerToken(token)
-	 if tokenString == "" {
+	tokenString := extractBearerToken(token)
+	if tokenString == "" {
 		return errConstant.ErrUnauthorized
-	 }
+	}
 
-	 claims := &services.Claims{}
-	 tokenJwt, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
-		_, ok := t.Method.(*jwt.SigningMethodHMAC)
-		if !ok {
+	claims := &services.Claims{}
+	tokenJwt, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errConstant.ErrInvalidToken
 		}
 
 		jwtSecret := []byte(config.Config.JwtSecretKey)
 		return jwtSecret, nil
-	 })
+	})
 
-	 if err != nil || !tokenJwt.Valid {
+	if err != nil || !tokenJwt.Valid {
 		return errConstant.ErrUnauthorized
-	 }
+	}
 
-	 userLogin := ctx.Request.WithContext(context.WithValue(ctx.Request.Context(), constants.UserLogin, claims.User))
-	 ctx.Request = userLogin
-	 ctx.Set(constants.Token, token)
-	 return nil
+	userLogin := ctx.Request.WithContext(context.WithValue(ctx.Request.Context(), constants.UserLogin, claims.User))
+	ctx.Request = userLogin
+	ctx.Set(constants.Token, token)
+	return nil
 }
 
-func Auntenticate() gin.HandlerFunc {
+func Authenticate() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var err error
 		token := ctx.GetHeader(constants.Authorization)
-		if token != "" {
+		if token == "" {
+			fmt.Println("token is empty")
 			responseUnauthorized(ctx, errConstant.ErrUnauthorized.Error())
 			return
 		}
 
-		err = validateBerarerToken(ctx, token)
-		if err != nil{
+		if err := validateBearerToken(ctx, token); err != nil {
+			fmt.Println("error validate token", err)
 			responseUnauthorized(ctx, err.Error())
 			return
 		}
 
-		err = validateAPIKey(ctx)
-		if err != nil{
+		if err := validateAPIKey(ctx); err != nil {
+			fmt.Println("error validate api key", err)
 			responseUnauthorized(ctx, err.Error())
 			return
 		}

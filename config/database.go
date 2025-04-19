@@ -20,7 +20,7 @@ func InitDatabase() (*gorm.DB, error) {
     config.Database.Port,
     config.Database.Name,
 )
-
+	fmt.Println(uri)
 
 
 	db, err := gorm.Open(postgres.Open(uri), &gorm.Config{}) 
